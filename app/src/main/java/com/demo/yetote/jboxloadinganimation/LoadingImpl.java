@@ -1,8 +1,8 @@
 package com.demo.yetote.jboxloadinganimation;
 
+import android.util.Log;
 import android.view.View;
 
-import org.jbox2d.collision.ContactID;
 import org.jbox2d.collision.shapes.PolygonShape;
 import org.jbox2d.common.Vec2;
 import org.jbox2d.dynamics.Body;
@@ -11,13 +11,16 @@ import org.jbox2d.dynamics.BodyType;
 import org.jbox2d.dynamics.FixtureDef;
 import org.jbox2d.dynamics.World;
 
+import java.util.Random;
+
 /**
  * com.demo.yetote.jboxloadinganimation
  *
  * @author Swg
  * @date 2018/4/10 10:47
  */
-public class LoadingImpl {
+class LoadingImpl {
+    private static final String TAG = "LoadingImpl";
     /**
      * 世界
      */
@@ -27,53 +30,50 @@ public class LoadingImpl {
      */
     private float mDensity;
     /**
-     * 质量
-     */
-    private float quality;
-    /**
      * 摩擦力系数
      */
     private float mFriction = 0.5f;
     /**
      * 弹力系数
      */
-    private float mRestitution = 0.5f;
+    private float mRestitution = 0;
     /**
      * 比例
      */
-    private int ratio = 50;
+    private int ratio = 10;
     private int width, height;
+    private Random random = new Random();
 
-    public LoadingImpl() {
-
+    LoadingImpl(float mDensity) {
+        this.mDensity = mDensity;
     }
 
-    public void createWorld() {
+    void createWorld() {
 
         /*
          创建世界
          @params vec2 重力向量
          */
-        mWorld = new World(new Vec2(0, 10f));
+        mWorld = new World(new Vec2(0, 100f));
 
         createVerticalRounds();
         createHorizontalRounds();
 
     }
 
-    public void setWorldSize(int x,int y){
-        this.width = (int) trueToImitate(x);
-        this.height = (int) trueToImitate(y);
+
+    void onSizeChange(int w, int h) {
+        this.width = w;
+        this.height = h;
     }
 
-    public void onSizeChange(int w, int h) {
-
-    }
-
-    public void startWorld(){
-        if (mWorld!=null){
-
-        }
+    void startWorld() {
+        float dt = 1f / 60f;
+        //计算速度时间
+        int velocityIterations = 3;
+        //计算位置时间
+        int positionIterations = 10;
+        mWorld.step(dt, velocityIterations, positionIterations);
     }
 
     /**
@@ -81,28 +81,30 @@ public class LoadingImpl {
      *
      * @param v 刚体View
      */
-    public void createBody(View v) {
-        float boxWight = trueToImitate(v.getWidth());
-        float boxHeight = trueToImitate(v.getHeight());
+    void createBody(View v) {
 
         BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyType.DYNAMIC;
 
         PolygonShape rectBox = new PolygonShape();
-        rectBox.setAsBox(boxWight / 2, boxHeight / 2);
-
+        rectBox.setAsBox(trueToImitate(v.getWidth() / 2), trueToImitate(v.getHeight() / 2));
+        Log.e(TAG, "createBody: " + rectBox.getVertexCount());
         FixtureDef fixtureDef = new FixtureDef();
         fixtureDef.shape = rectBox;
         fixtureDef.density = mDensity;
         fixtureDef.friction = mFriction;
         fixtureDef.restitution = mRestitution;
 
-        bodyDef.position.set(trueToImitate(v.getX() + v.getWidth() / 2),
-                trueToImitate(v.getY() + v.getHeight() / 2));
+        bodyDef.position.set(trueToImitate(v.getWidth() / 2),
+                trueToImitate(v.getHeight() / 2));
+
         Body rectBody = mWorld.createBody(bodyDef);
+
         rectBody.createFixture(fixtureDef);
-        v.setTag(R.id.body_tag);
+        v.setTag(R.id.body_tag, rectBody);
+        rectBody.setLinearVelocity(new Vec2(random.nextFloat() * 100, random.nextFloat() * 100));
     }
+
 
     /**
      * 垂直方向的刚体，指屏幕左右边界
@@ -135,7 +137,7 @@ public class LoadingImpl {
         leftBody.createFixture(fixtureDef);
 
         //描述刚体摆放位置为右侧
-        bodyDef.position.set(trueToImitate(width) + boxWight, boxHeight);
+        bodyDef.position.set(trueToImitate(width) + boxWight, 0);
         Body rightBody = mWorld.createBody(bodyDef);
         rightBody.createFixture(fixtureDef);
 
@@ -166,12 +168,12 @@ public class LoadingImpl {
         fixtureDef.restitution = mRestitution;
 
         //描述刚体摆放位置为上方
-        bodyDef.position.set(0, boxHeight);
+        bodyDef.position.set(0, -boxHeight);
         Body topBody = mWorld.createBody(bodyDef);
         topBody.createFixture(fixtureDef);
 
         //描述刚体摆放位置为下方
-        bodyDef.position.set(0, trueToImitate(height));
+        bodyDef.position.set(0, trueToImitate(height) + boxHeight);
         Body bottomBody = mWorld.createBody(bodyDef);
         bottomBody.createFixture(fixtureDef);
 
@@ -196,4 +198,31 @@ public class LoadingImpl {
     private float trueToImitate(float reality) {
         return reality / ratio;
     }
+
+    float getX(View v) {
+        Body body = (Body) v.getTag(R.id.body_tag);
+        if (body != null) {
+            return imitateToTrue(body.getPosition().x) - (v.getWidth() / 2);
+        }
+        return 0;
+    }
+
+    float getY(View v) {
+        Body body = (Body) v.getTag(R.id.body_tag);
+        if (body != null) {
+            return imitateToTrue(body.getPosition().y) - (v.getHeight() / 2);
+        }
+        return 0;
+    }
+
+    float getViewRotate(View v) {
+        Body body = (Body) v.getTag(R.id.body_tag);
+        if (body != null) {
+            float angle = body.getAngle();
+            return (float) ((angle / Math.PI * 180) % 360);
+        }
+        return 0;
+    }
+
+
 }
